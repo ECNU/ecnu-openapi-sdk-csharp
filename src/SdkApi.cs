@@ -1,18 +1,82 @@
 ﻿using CsvHelper;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using System;
-using System.Collections.Generic;
-using System.IO;
 
 namespace DataSyncSdk
 {
     public class SdkApi
     {
-        public static void SyncToDb()
-        {
+        #region token 管理
+        public static string token = string.Empty;
+        private static long expireTimeStamp = 0;
 
+        /// <summary>
+        /// 初始化Oauth，获取token
+        /// </summary>
+        /// <param name="clientId"></param>
+        /// <param name="clientSecret"></param>
+        public static void InitOAuth2ClientCredentials(string clientId, string clientSecret)
+        {
+            if (!string.IsNullOrEmpty(clientId) && !string.IsNullOrEmpty(clientSecret))
+            {
+                if (token == string.Empty && expireTimeStamp == 0)
+                {
+                    GetTokenAsync(clientId, clientSecret);
+                }
+                else if (expireTimeStamp - long.Parse(GetTimeStamp()) <= 600)
+                {
+                    GetTokenAsync(clientId, clientSecret);
+                }
+            }
+            else
+            {
+                Console.WriteLine("config oauth client");
+                return;
+            }
         }
+
+
+        /// <summary>
+        /// 获取oauth token
+        /// </summary>
+        /// <param name="clientId"></param>
+        /// <param name="clientSecret"></param>
+        /// <returns></returns>
+        private static void GetTokenAsync(string clientId, string clientSecret)
+        {
+            try
+            {
+                using (var httpClient = new HttpClient())
+                {
+                    httpClient.Timeout = TimeSpan.FromSeconds(OAuth2Config.DefaultTimeOut);
+                    var url = APIConfig.DefaultBaseUrl + "/oauth2/token";
+                    var response = httpClient.PostAsync(url, new FormUrlEncodedContent(new List<KeyValuePair<string, string>>()
+                    {
+                        new KeyValuePair<string, string>("grant_type","client_credentials"),
+                        new KeyValuePair<string, string>("client_id",clientId),
+                        new KeyValuePair<string, string>("client_secret", clientSecret),
+                    })).Result;
+                    var str = response.Content.ReadAsStringAsync().Result;
+                    var res = JObject.Parse(str);
+                    expireTimeStamp = long.Parse(GetTimeStamp()) + 7200;
+                    token = res["access_token"].ToString();
+                    Console.WriteLine(token + "  expire:" + expireTimeStamp + "  now:" + GetTimeStamp());
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+
+        public static string GetTimeStamp()
+        {
+            TimeSpan ts = DateTime.Now - new DateTime(1970, 1, 1, 0, 0, 0, 0);
+            return Convert.ToInt64(ts.TotalSeconds).ToString();
+        }
+        #endregion
+
 
         #region 对外暴露的公有方法
         /// <summary>
@@ -38,10 +102,10 @@ namespace DataSyncSdk
         /// <param name="path"></param>
         public static void SyncToCsv<T>(string path) where T : class
         {
-            if (OauthConfig.ClientId != null && OauthConfig.ClientSecret != null && ApiConfig.ApiUrl != null
-                && ApiConfig.ApiParameters != null && ApiConfig.OutputFilePath != null)
+            if (OAuth2Config.ClientId != null && OAuth2Config.ClientSecret != null && APIConfig.ApiUrl != null
+                && APIConfig.ApiParameters != null && APIConfig.OutputFilePath != null)
             {
-                var expandos = GetAllRows<T>(ApiConfig.PageSize);
+                var expandos = GetAllRows<T>(APIConfig.PageSize);
                 if (expandos == null)
                 {
                     Console.WriteLine("bad request,check api configs");
@@ -71,10 +135,10 @@ namespace DataSyncSdk
         public static List<T> SyncToModel<T>() where T : class
         {
             List<T> list = new List<T>();
-            if (OauthConfig.ClientId != null && OauthConfig.ClientSecret != null && ApiConfig.ApiUrl != null
-                && ApiConfig.ApiParameters != null && ApiConfig.OutputFilePath != null)
+            if (OAuth2Config.ClientId != null && OAuth2Config.ClientSecret != null && APIConfig.ApiUrl != null
+                && APIConfig.ApiParameters != null && APIConfig.OutputFilePath != null)
             {
-                list = GetAllRows<T>(ApiConfig.PageSize);
+                list = GetAllRows<T>(APIConfig.PageSize);
                 if (list == null)
                 {
                     Console.WriteLine("bad request,check api configs");
@@ -96,9 +160,9 @@ namespace DataSyncSdk
         /// <typeparam name="T"></typeparam>
         public static void SyncToDb<T>(SqlSugarDbContext db) where T : class, new()
         {
-            int bulckPageSize = ApiConfig.BatchSize;
-            if (OauthConfig.ClientId != null && OauthConfig.ClientSecret != null && ApiConfig.ApiUrl != null
-                && ApiConfig.ApiParameters != null && ApiConfig.OutputFilePath != null)
+            int bulckPageSize = APIConfig.BatchSize;
+            if (OAuth2Config.ClientId != null && OAuth2Config.ClientSecret != null && APIConfig.ApiUrl != null
+                && APIConfig.ApiParameters != null && APIConfig.OutputFilePath != null)
             {
                 db.Db.CodeFirst.InitTables(typeof(T));
                 int pageNum;
@@ -106,7 +170,7 @@ namespace DataSyncSdk
                 List<T> allRows = new List<T>();
                 for (pageNum = 1; pageNum < int.MaxValue; pageNum++)
                 {
-                    var row = GetRows<T>(pageNum, ApiConfig.PageSize);
+                    var row = GetRows<T>(pageNum, APIConfig.PageSize);
                     if (row.Count != 0)
                     {
                         allRows.AddRange(row);
@@ -142,9 +206,9 @@ namespace DataSyncSdk
         /// <param name="db"></param>
         public static void SyncToDbMerge<T>(SqlSugarDbContext db) where T : class, new()
         {
-            int bulckPageSize = ApiConfig.BatchSize;
-            if (OauthConfig.ClientId != null && OauthConfig.ClientSecret != null && ApiConfig.ApiUrl != null
-                && ApiConfig.ApiParameters != null && ApiConfig.OutputFilePath != null)
+            int bulckPageSize = APIConfig.BatchSize;
+            if (OAuth2Config.ClientId != null && OAuth2Config.ClientSecret != null && APIConfig.ApiUrl != null
+                && APIConfig.ApiParameters != null && APIConfig.OutputFilePath != null)
             {
                 db.Db.CodeFirst.InitTables(typeof(T));
                 int pageNum;
@@ -152,7 +216,7 @@ namespace DataSyncSdk
                 List<T> allRows = new List<T>();
                 for (pageNum = 1; pageNum < int.MaxValue; pageNum++)
                 {
-                    var row = GetRows<T>(pageNum, ApiConfig.PageSize);
+                    var row = GetRows<T>(pageNum, APIConfig.PageSize);
                     if (row.Count != 0)
                     {
                         allRows.AddRange(row);
@@ -180,38 +244,38 @@ namespace DataSyncSdk
         }
 
 
-        public static void AddParameter(string key, string value)
+        public static void SetParameter(string key, string value)
         {
             //如果添加了重复的参数，新的值覆盖原有值
-            if (ApiConfig.ApiParameters.ContainsKey(key))
+            if (APIConfig.ApiParameters.ContainsKey(key))
             {
-                ApiConfig.ApiParameters[key] = value;
+                APIConfig.ApiParameters[key] = value;
             }
             else
             {
-                ApiConfig.ApiParameters.Add(key, value);
+                APIConfig.ApiParameters.Add(key, value);
             }
 
         }
 
         public static void DeleteParameter(string key, string value)
         {
-            if (ApiConfig.ApiParameters.ContainsKey(key))
+            if (APIConfig.ApiParameters.ContainsKey(key))
             {
-                ApiConfig.ApiParameters.Remove(key);
+                APIConfig.ApiParameters.Remove(key);
             }
         }
 
         private static string GenerateUrl(int pageNum, int pageSize)
         {
-            string url = string.Format("{0}{1}?pageNum={2}&pageSize={3}", ApiConfig.DefaultBaseUrl, ApiConfig.ApiUrl, pageNum, pageSize);
-            if (ApiConfig.ApiParameters.Count == 0)
+            string url = string.Format("{0}{1}?pageNum={2}&pageSize={3}", APIConfig.DefaultBaseUrl, APIConfig.ApiUrl, pageNum, pageSize);
+            if (APIConfig.ApiParameters.Count == 0)
             {
                 Console.WriteLine("no params");
                 return url;
             }
 
-            foreach (KeyValuePair<string, string> keyValuePair in ApiConfig.ApiParameters)
+            foreach (KeyValuePair<string, string> keyValuePair in APIConfig.ApiParameters)
             {
                 if (!url.Contains("?"))
                     url += "?" + keyValuePair.Key + "=" + keyValuePair.Value;
