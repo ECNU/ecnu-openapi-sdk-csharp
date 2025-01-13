@@ -7,6 +7,7 @@ namespace DataSyncSdk
 {
     public class OauthToken
     {
+        public static string BaseUrl = "https://api.ecnu.edu.cn";
         public static string token = string.Empty;
         private static long expireTimeStamp = 0;
 
@@ -15,7 +16,7 @@ namespace DataSyncSdk
         /// </summary>
         /// <param name="clientId"></param>
         /// <param name="clientSecret"></param>
-        public static void InitialOauthCredential(string clientId, string clientSecret)
+        public static void InitOauth2ClientCredentials(string clientId, string clientSecret)
         {
             if (!string.IsNullOrEmpty(clientId) && !string.IsNullOrEmpty(clientSecret))
             {
@@ -49,7 +50,7 @@ namespace DataSyncSdk
                 using (var httpClient = new HttpClient())
                 {
                     httpClient.Timeout = TimeSpan.FromSeconds(OauthConfig.DefaultTimeOut);
-                    var url = ApiConfig.DefaultBaseUrl + "/oauth2/token";
+                    var url = BaseUrl + "/oauth2/token";
                     var response = httpClient.PostAsync(url, new FormUrlEncodedContent(new List<KeyValuePair<string, string>>()
                     {
                         new KeyValuePair<string, string>("grant_type","client_credentials"),

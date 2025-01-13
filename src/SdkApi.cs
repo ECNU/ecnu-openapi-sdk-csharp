@@ -1,9 +1,6 @@
 ﻿using CsvHelper;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using System;
-using System.Collections.Generic;
-using System.IO;
 
 namespace DataSyncSdk
 {
@@ -36,12 +33,12 @@ namespace DataSyncSdk
         /// json写入csv文件
         /// </summary>
         /// <param name="path"></param>
-        public static void SyncToCsv<T>(string path) where T : class
+        public static void SyncToCsv<T>(string path, ApiConfig api) where T : class
         {
-            if (OauthConfig.ClientId != null && OauthConfig.ClientSecret != null && ApiConfig.ApiUrl != null
-                && ApiConfig.ApiParameters != null && ApiConfig.OutputFilePath != null)
+            if (OauthConfig.ClientId != null && OauthConfig.ClientSecret != null && api.ApiUrl != null
+                && api.ApiParameters != null && api.OutputFilePath != null)
             {
-                var expandos = GetAllRows<T>(ApiConfig.PageSize);
+                var expandos = GetAllRows<T>(api);
                 if (expandos == null)
                 {
                     Console.WriteLine("bad request,check api configs");
@@ -68,13 +65,13 @@ namespace DataSyncSdk
         /// <typeparam name="T"></typeparam>
         /// <param name="json"></param>
         /// <returns></returns>
-        public static List<T> SyncToModel<T>() where T : class
+        public static List<T> SyncToModel<T>(ApiConfig api) where T : class
         {
             List<T> list = new List<T>();
-            if (OauthConfig.ClientId != null && OauthConfig.ClientSecret != null && ApiConfig.ApiUrl != null
-                && ApiConfig.ApiParameters != null && ApiConfig.OutputFilePath != null)
+            if (OauthConfig.ClientId != null && OauthConfig.ClientSecret != null && api.ApiUrl != null
+                && api.ApiParameters != null && api.OutputFilePath != null)
             {
-                list = GetAllRows<T>(ApiConfig.PageSize);
+                list = GetAllRows<T>(api);
                 if (list == null)
                 {
                     Console.WriteLine("bad request,check api configs");
@@ -94,11 +91,11 @@ namespace DataSyncSdk
         /// </summary>
         /// <param name="db">dbcontext</param>
         /// <typeparam name="T"></typeparam>
-        public static void SyncToDb<T>(SqlSugarDbContext db) where T : class, new()
+        public static void SyncToDb<T>(SqlSugarDbContext db, ApiConfig api) where T : class, new()
         {
-            int bulckPageSize = ApiConfig.BatchSize;
-            if (OauthConfig.ClientId != null && OauthConfig.ClientSecret != null && ApiConfig.ApiUrl != null
-                && ApiConfig.ApiParameters != null && ApiConfig.OutputFilePath != null)
+            int bulckPageSize = api.BatchSize;
+            if (OauthConfig.ClientId != null && OauthConfig.ClientSecret != null && api.ApiUrl != null
+                && api.ApiParameters != null && api.OutputFilePath != null)
             {
                 db.Db.CodeFirst.InitTables(typeof(T));
                 int pageNum;
@@ -106,7 +103,7 @@ namespace DataSyncSdk
                 List<T> allRows = new List<T>();
                 for (pageNum = 1; pageNum < int.MaxValue; pageNum++)
                 {
-                    var row = GetRows<T>(pageNum, ApiConfig.PageSize);
+                    var row = GetRows<T>(pageNum, api);
                     if (row.Count != 0)
                     {
                         allRows.AddRange(row);
@@ -140,11 +137,11 @@ namespace DataSyncSdk
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="db"></param>
-        public static void SyncToDbMerge<T>(SqlSugarDbContext db) where T : class, new()
+        public static void SyncToDbMerge<T>(SqlSugarDbContext db, ApiConfig api) where T : class, new()
         {
-            int bulckPageSize = ApiConfig.BatchSize;
-            if (OauthConfig.ClientId != null && OauthConfig.ClientSecret != null && ApiConfig.ApiUrl != null
-                && ApiConfig.ApiParameters != null && ApiConfig.OutputFilePath != null)
+            int bulckPageSize = api.BatchSize;
+            if (OauthConfig.ClientId != null && OauthConfig.ClientSecret != null && api.ApiUrl != null
+                && api.ApiParameters != null && api.OutputFilePath != null)
             {
                 db.Db.CodeFirst.InitTables(typeof(T));
                 int pageNum;
@@ -152,7 +149,7 @@ namespace DataSyncSdk
                 List<T> allRows = new List<T>();
                 for (pageNum = 1; pageNum < int.MaxValue; pageNum++)
                 {
-                    var row = GetRows<T>(pageNum, ApiConfig.PageSize);
+                    var row = GetRows<T>(pageNum, api);
                     if (row.Count != 0)
                     {
                         allRows.AddRange(row);
@@ -178,48 +175,7 @@ namespace DataSyncSdk
                 Console.WriteLine("请配置api参数");
             }
         }
-
-
-        public static void AddParameter(string key, string value)
-        {
-            //如果添加了重复的参数，新的值覆盖原有值
-            if (ApiConfig.ApiParameters.ContainsKey(key))
-            {
-                ApiConfig.ApiParameters[key] = value;
-            }
-            else
-            {
-                ApiConfig.ApiParameters.Add(key, value);
-            }
-
-        }
-
-        public static void DeleteParameter(string key, string value)
-        {
-            if (ApiConfig.ApiParameters.ContainsKey(key))
-            {
-                ApiConfig.ApiParameters.Remove(key);
-            }
-        }
-
-        private static string GenerateUrl(int pageNum, int pageSize)
-        {
-            string url = string.Format("{0}{1}?pageNum={2}&pageSize={3}", ApiConfig.DefaultBaseUrl, ApiConfig.ApiUrl, pageNum, pageSize);
-            if (ApiConfig.ApiParameters.Count == 0)
-            {
-                Console.WriteLine("no params");
-                return url;
-            }
-
-            foreach (KeyValuePair<string, string> keyValuePair in ApiConfig.ApiParameters)
-            {
-                if (!url.Contains("?"))
-                    url += "?" + keyValuePair.Key + "=" + keyValuePair.Value;
-                else
-                    url += "&" + keyValuePair.Key + "=" + keyValuePair.Value;
-            }
-            return url;
-        }
+     
         #endregion
 
         #region 私有方法
@@ -230,9 +186,9 @@ namespace DataSyncSdk
         /// <param name="pageNum"></param>
         /// <param name="pageSize"></param>
         /// <returns></returns>
-        private static List<T> GetRows<T>(int pageNum, int pageSize) where T : class
+        private static List<T> GetRows<T>(int pageNum, ApiConfig api) where T : class
         {
-            string url = GenerateUrl(pageNum, pageSize);
+            string url = api.GenerateUrl(pageNum, api.PageSize);
             string res = HttpHelper.HttpGetAsync(url);
             if (res.Contains("error"))
                 return null;
@@ -248,13 +204,13 @@ namespace DataSyncSdk
         /// <typeparam name="T"></typeparam>
         /// <param name="pageSize"></param>
         /// <returns></returns>
-        public static List<T> GetAllRows<T>(int pageSize) where T : class
+        public static List<T> GetAllRows<T>(ApiConfig api) where T : class
         {
             List<T> allRows = new List<T>();
             int pageNum;
             for (pageNum = 1; pageNum < int.MaxValue; pageNum++)
             {
-                var row = GetRows<T>(pageNum, pageSize);
+                var row = GetRows<T>(pageNum, api);
                 if (row == null)
                     return null;
                 if (row.Count != 0)

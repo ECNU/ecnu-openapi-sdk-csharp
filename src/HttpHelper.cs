@@ -38,7 +38,7 @@ namespace DataSyncSdk
             {
                 if (retry++ >= 3)
                     return "";
-                OauthToken.InitialOauthCredential(OauthConfig.ClientId, OauthConfig.ClientSecret);
+                OauthToken.InitOauth2ClientCredentials(OauthConfig.ClientId, OauthConfig.ClientSecret);
                 HttpGetAsync(url);
             }
             return retString;
